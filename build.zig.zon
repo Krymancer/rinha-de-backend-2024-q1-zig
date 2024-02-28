@@ -1,0 +1,11 @@
+.{
+    .name = "rinha-de-backend-2024-q1-zig",
+    .version = "0.0.0",
+    .paths = .{""},
+    .dependencies = .{
+      .zap = .{
+        .url = "https://github.com/zigzap/zap/archive/zig-0.12.0.tar.gz",
+        .hash = "1220ca283c7e4240adbf9dfa31f7894818efc93ce54300521dad777a2670e9674dd8",
+      },
+    }
+}
