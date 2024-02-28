@@ -54,6 +54,14 @@ pub fn statment(id: u8, r: zap.Request) void {
 }
 
 pub fn transactions(id: u8, r: zap.Request) void {
+    if (r.method) |method| {
+        if (std.mem.eql(u8, method, "POST")) {
+            r.sendBody("POST O/") catch return;
+        } else {
+            r.setStatus(zap.StatusCode.method_not_allowed);
+            r.sendBody("") catch return;
+        }
+    }
     _ = id;
     r.sendBody("transacoes") catch return;
 }
