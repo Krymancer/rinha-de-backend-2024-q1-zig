@@ -195,6 +195,6 @@ pub fn main() !void {
 
     zap.start(.{
         .threads = 2,
-        .workers = 2,
+        .workers = 1,
     });
 }
