@@ -15,6 +15,9 @@ const TransactionPayload = struct { valor: i64, tipo: []const u8, descricao: []c
 const TransactionStatement = struct { valor: i64, tipo: []const u8, descricao: []const u8, realizado_em: i64 };
 
 pub fn main() !void {
+    const port_env = std.os.getenv("PORT") orelse "3000";
+    const PORT = try std.fmt.parseInt(u16, port_env, 10);
+
     const pool = try pg.Pool.init(allocator, .{
         .size = 10,
         .connect = .{
@@ -25,7 +28,7 @@ pub fn main() !void {
     });
 
     const global = Global{ .pool = pool };
-    var server = try httpz.ServerCtx(Global, Global).init(allocator, .{ .port = 3000 }, global);
+    var server = try httpz.ServerCtx(Global, Global).init(allocator, .{ .port = PORT }, global);
     var router = server.router();
 
     router.get("/clientes/:id/extrato", extrato);
@@ -102,11 +105,11 @@ fn transacoes(global: Global, req: *httpz.Request, res: *httpz.Response) !void {
         const row = try result.next();
         const raw = row.?.get([]u8, 0);
 
-        // The 1 byte indicates how many items we have in the record
+        // First byte indicates how many items we have in the record
         const len = std.mem.readInt(i32, raw[0..4], .big);
 
         if (len == 1) {
-            // We don't really care for the next two bytes, the value is in [12..16]
+            // Don't really care for the next two bytes, the value is in [12..16]
             const status_value = std.mem.readInt(i32, raw[12..16], .big);
             const status: CreateTransactionReturn = @enumFromInt(status_value);
 

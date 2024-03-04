@@ -29,6 +29,8 @@ pub fn build(b: *std.Build) !void {
         exe.root_module.addImport(m.key_ptr.*, m.value_ptr.*);
     }
 
+    exe.linkLibC();
+
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
