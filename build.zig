@@ -14,13 +14,7 @@ pub fn build(b: *std.Build) !void {
 
     const dep_opts = .{ .target = target, .optimize = optimize };
 
-    try modules.put("zul", b.dependency("zul", dep_opts).module("zul"));
-    try modules.put("logz", b.dependency("logz", dep_opts).module("logz"));
     try modules.put("httpz", b.dependency("httpz", dep_opts).module("httpz"));
-    try modules.put("cache", b.dependency("cache", dep_opts).module("cache"));
-    try modules.put("buffer", b.dependency("buffer", dep_opts).module("buffer"));
-    try modules.put("typed", b.dependency("typed", dep_opts).module("typed"));
-    try modules.put("validate", b.dependency("validate", dep_opts).module("validate"));
     try modules.put("pg", b.dependency("pg", dep_opts).module("pg"));
 
     const exe = b.addExecutable(.{
