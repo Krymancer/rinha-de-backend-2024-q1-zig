@@ -4,5 +4,9 @@ Essa é a minha implementação da [Rinha de Backend 2024 Q1](https://github.com
 
 ## Tecnologias utilizadas
 
-- [Zig](https://ziglang.org/)
-- [Zap](https://github.com/zigzap/zap)
+- [zig](https://ziglang.org/)
+- [htppz](https://github.com/karlseguin/http.zig)
+- [pg.zig](https://github.com/karlseguin/pg.zig)
+- [postgres](https://www.postgresql.org/)
+- [nginx](https://nginx.org/en/)
+- [docker](https://www.docker.com/)
