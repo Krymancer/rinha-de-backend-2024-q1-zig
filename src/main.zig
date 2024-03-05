@@ -5,12 +5,9 @@ const pg = @import("pg");
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
 
-const Global = struct {
-    pool: *pg.Pool,
-};
+var pool: *pg.Pool = undefined;
 
 const CreateTransactionReturn = enum(i32) { NotFound = 1, LimitExceeded = 2 };
-
 const TransactionPayload = struct { valor: i64, tipo: []const u8, descricao: []const u8 };
 const TransactionStatement = struct { valor: i64, tipo: []const u8, descricao: []const u8, realizado_em: i64 };
 
@@ -18,17 +15,16 @@ pub fn main() !void {
     const port_env = std.os.getenv("PORT") orelse "3000";
     const PORT = try std.fmt.parseInt(u16, port_env, 10);
 
-    const pool = try pg.Pool.init(allocator, .{
+    pool = try pg.Pool.init(allocator, .{
         .size = 10,
         .connect = .{
             .port = 5432,
             .host = "127.0.0.1",
         },
-        .auth = .{ .username = "user", .password = "password", .database = "db", .timeout = 10_000 },
+        .auth = .{ .username = "user", .password = "password", .database = "db" },
     });
 
-    const global = Global{ .pool = pool };
-    var server = try httpz.ServerCtx(Global, Global).init(allocator, .{ .port = PORT }, global);
+    var server = try httpz.Server().init(allocator, .{ .port = PORT });
     var router = server.router();
 
     router.get("/clientes/:id/extrato", extrato);
@@ -37,7 +33,7 @@ pub fn main() !void {
     try server.listen();
 }
 
-fn extrato(global: Global, req: *httpz.Request, res: *httpz.Response) !void {
+fn extrato(req: *httpz.Request, res: *httpz.Response) !void {
     const id_param = req.param("id").?;
     const id = std.fmt.parseInt(i32, id_param, 10) catch return;
 
@@ -46,15 +42,14 @@ fn extrato(global: Global, req: *httpz.Request, res: *httpz.Response) !void {
         return;
     }
 
-    var result = try global.pool.query("SELECT saldo, limite FROM cliente WHERE id = $1", .{id});
-    defer result.deinit();
-
+    var result = try pool.query("SELECT saldo, limite FROM cliente WHERE id = $1", .{id});
     const row = try result.next();
     const saldo = row.?.get(i32, 0);
     const limite = row.?.get(i32, 1);
     const realizado_em = std.time.timestamp();
+    result.deinit();
 
-    result = try global.pool.query("SELECT valor, tipo, descricao, realizado_em FROM Transacao WHERE cliente_id = $1 ORDER BY realizado_em DESC LIMIT 10", .{id});
+    result = try pool.query("SELECT valor, tipo, descricao, realizado_em FROM Transacao WHERE cliente_id = $1 ORDER BY realizado_em DESC LIMIT 10", .{id});
 
     var ultimas_trasacoes = std.ArrayList(TransactionStatement).init(allocator);
 
@@ -74,7 +69,7 @@ fn extrato(global: Global, req: *httpz.Request, res: *httpz.Response) !void {
     }, .ultimas_trasacoes = ultimas_trasacoes.items[0..] }, .{});
 }
 
-fn transacoes(global: Global, req: *httpz.Request, res: *httpz.Response) !void {
+fn transacoes(req: *httpz.Request, res: *httpz.Response) !void {
     const id_param = req.param("id").?;
     const id = std.fmt.parseInt(i32, id_param, 10) catch return;
 
@@ -99,7 +94,7 @@ fn transacoes(global: Global, req: *httpz.Request, res: *httpz.Response) !void {
         var valor = payload.valor;
         if (payload.tipo[0] == 'd') valor *= -1;
 
-        var result = try global.pool.query("select criartransacao($1, $2, $3, $4);", .{ id, valor, payload.tipo, payload.descricao });
+        var result = try pool.query("select criartransacao($1, $2, $3, $4);", .{ id, valor, payload.tipo, payload.descricao });
         defer result.deinit();
 
         const row = try result.next();
