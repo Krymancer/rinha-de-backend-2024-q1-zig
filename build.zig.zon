@@ -9,7 +9,7 @@
       },
       .pg = .{
         .url = "https://github.com/karlseguin/pg.zig/archive/master.tar.gz",
-        .hash = "1220189204c934e0038216960e1ed69c09e7bb4c7cd08dcd722ff5a5487403ad4af6"
+        .hash = "1220a3ab709a7cf03de6a856e311c5ee6cbb60048b10f015c88454732764f7eb5aaf"
       },
     }
 }

@@ -2,9 +2,6 @@ const std = @import("std");
 const httpz = @import("httpz");
 const pg = @import("pg");
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
-
 var pool: *pg.Pool = undefined;
 
 const CreateTransactionReturn = enum(i32) { NotFound = 1, LimitExceeded = 2 };
@@ -12,6 +9,9 @@ const TransactionPayload = struct { valor: i64, tipo: []const u8, descricao: []c
 const TransactionStatement = struct { valor: i64, tipo: []const u8, descricao: []const u8, realizado_em: i64 };
 
 pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
     const port_env = std.os.getenv("PORT") orelse "3000";
     const PORT = try std.fmt.parseInt(u16, port_env, 10);
 
@@ -35,6 +35,9 @@ pub fn main() !void {
 }
 
 fn extrato(req: *httpz.Request, res: *httpz.Response) !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
     const id_param = req.param("id").?;
     const id = std.fmt.parseInt(i32, id_param, 10) catch return;
 
@@ -46,9 +49,13 @@ fn extrato(req: *httpz.Request, res: *httpz.Response) !void {
     var result = try pool.query("SELECT saldo, limite FROM cliente WHERE id = $1", .{id});
     defer result.deinit();
 
-    const row = try result.next();
-    const saldo = row.?.get(i32, 0);
-    const limite = row.?.get(i32, 1);
+    const row = try result.next() orelse {
+        res.status = 404;
+        return;
+    };
+
+    const saldo = row.get(i32, 0);
+    const limite = row.get(i32, 1);
     const realizado_em = std.time.timestamp();
 
     var result_trans = try pool.query("SELECT valor, tipo, descricao, realizado_em FROM Transacao WHERE cliente_id = $1 ORDER BY realizado_em DESC LIMIT 10", .{id});
@@ -71,6 +78,7 @@ fn extrato(req: *httpz.Request, res: *httpz.Response) !void {
         .limite = limite,
         .data_extrato = realizado_em,
     }, .ultimas_transacoes = ultimas_transacoes.items[0..] }, .{});
+    return;
 }
 
 fn transacoes(req: *httpz.Request, res: *httpz.Response) !void {
@@ -98,18 +106,16 @@ fn transacoes(req: *httpz.Request, res: *httpz.Response) !void {
         var valor = payload.valor;
         if (payload.tipo[0] == 'd') valor *= -1;
 
-        var result = try pool.query("select criartransacao($1, $2, $3, $4);", .{ id, valor, payload.tipo, payload.descricao });
-        defer result.deinit();
+        var row = try pool.row("select criartransacao($1, $2, $3, $4);", .{ id, valor, payload.tipo, payload.descricao }) orelse {
+            res.status = 500;
+            return;
+        };
+        defer row.deinit();
 
-        const row = try result.next();
-        const raw = row.?.get([]u8, 0);
+        var record = row.record(0);
 
-        // First byte indicates how many items we have in the record
-        const len = std.mem.readInt(i32, raw[0..4], .big);
-
-        if (len == 1) {
-            // Don't really care for the next two bytes, the value is in [12..16]
-            const status_value = std.mem.readInt(i32, raw[12..16], .big);
+        if (record.number_of_columns == 1) {
+            const status_value = record.next(i32);
             const status: CreateTransactionReturn = @enumFromInt(status_value);
 
             switch (status) {
@@ -124,10 +130,8 @@ fn transacoes(req: *httpz.Request, res: *httpz.Response) !void {
             }
         }
 
-        // If len is not 1 we expect two values so...
-        const saldo = std.mem.readInt(i32, raw[12..16], .big);
-        // We have more two bytes that we don't care here so...
-        const limite = std.mem.readInt(i32, raw[24..28], .big);
+        const saldo = record.next(i32);
+        const limite = record.next(i32);
         try res.json(.{ .saldo = saldo, .limite = limite }, .{});
         return;
     } else {
