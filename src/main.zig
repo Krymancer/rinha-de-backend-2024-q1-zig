@@ -23,6 +23,7 @@ pub fn main() !void {
         },
         .auth = .{ .username = "user", .password = "password", .database = "db" },
     });
+    defer pool.deinit();
 
     var server = try httpz.Server().init(allocator, .{ .port = PORT });
     var router = server.router();
@@ -43,18 +44,21 @@ fn extrato(req: *httpz.Request, res: *httpz.Response) !void {
     }
 
     var result = try pool.query("SELECT saldo, limite FROM cliente WHERE id = $1", .{id});
+    defer result.deinit();
+
     const row = try result.next();
     const saldo = row.?.get(i32, 0);
     const limite = row.?.get(i32, 1);
     const realizado_em = std.time.timestamp();
-    result.deinit();
 
-    result = try pool.query("SELECT valor, tipo, descricao, realizado_em FROM Transacao WHERE cliente_id = $1 ORDER BY realizado_em DESC LIMIT 10", .{id});
+    var result_trans = try pool.query("SELECT valor, tipo, descricao, realizado_em FROM Transacao WHERE cliente_id = $1 ORDER BY realizado_em DESC LIMIT 10", .{id});
+    defer result_trans.deinit();
 
-    var ultimas_trasacoes = std.ArrayList(TransactionStatement).init(allocator);
+    var ultimas_transacoes = std.ArrayList(TransactionStatement).init(allocator);
+    defer ultimas_transacoes.deinit();
 
-    while (try result.next()) |row_transaction| {
-        try ultimas_trasacoes.append(TransactionStatement{
+    while (try result_trans.next()) |row_transaction| {
+        try ultimas_transacoes.append(TransactionStatement{
             .valor = row_transaction.get(i32, 0),
             .tipo = row_transaction.get([]u8, 1),
             .descricao = row_transaction.get([]u8, 2),
@@ -66,7 +70,7 @@ fn extrato(req: *httpz.Request, res: *httpz.Response) !void {
         .total = saldo,
         .limite = limite,
         .data_extrato = realizado_em,
-    }, .ultimas_trasacoes = ultimas_trasacoes.items[0..] }, .{});
+    }, .ultimas_transacoes = ultimas_transacoes.items[0..] }, .{});
 }
 
 fn transacoes(req: *httpz.Request, res: *httpz.Response) !void {
@@ -87,7 +91,7 @@ fn transacoes(req: *httpz.Request, res: *httpz.Response) !void {
         if ((payload.tipo.len != 1 or (payload.tipo[0] != 'd' and payload.tipo[0] != 'c')) or
             (payload.descricao.len <= 0 or payload.descricao.len > 10))
         {
-            res.status = 400;
+            res.status = 422;
             return;
         }
 
